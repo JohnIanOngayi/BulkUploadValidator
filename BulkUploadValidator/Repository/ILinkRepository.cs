@@ -1,4 +1,5 @@
-﻿using BulkUploadValidator.Models;
+﻿using BulkUploadValidator.Dtos;
+using BulkUploadValidator.Models;
 
 namespace BulkUploadValidator.Repository
 {
@@ -8,5 +9,6 @@ namespace BulkUploadValidator.Repository
         Task<List<LinkType>?> GetAllValidLinkTypes(bool cache);
         Task ReadyCache();
         void ValidateSubCounty(string subCountyName, string countyName);
+        ValidationResult ValidateLinkDto(LinkCreateDto linkCreateDto);
     }
 }

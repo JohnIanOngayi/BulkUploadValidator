@@ -1,6 +1,7 @@
 using BulkUploadValidator.Dtos;
 using BulkUploadValidator.Models;
 using BulkUploadValidator.Repository;
+using BulkUploadValidator.Services;
 using ClosedXML.Excel;
 using Microsoft.AspNetCore.Mvc;
 
@@ -89,7 +90,24 @@ namespace BulkUploadValidator.Controllers
             }
         }
 
-        //[HttpPost("UploadLinksExcel")]
-        //public async Task<IActionResult> UploadLinksExcel(IFormFile file)
+        [HttpPost("uploadSitesExcel")]
+        public async Task<IActionResult> UploadSitesExcel(IFormFile file)
+        {
+            var helper = new ExcelHelper(file);
+            var result = await helper.ParseSiteCreateDtos();
+
+            // Check validation errors in controller before passing to repo
+            if (result.HasErrors)
+            {
+                return BadRequest(new
+                {
+                    Message = "Excel contains validation errors.",
+                    Errors = result.Errors
+                });
+            }
+
+            // Repo check
+            for
+        }
     }
 }

@@ -1,4 +1,5 @@
-﻿using BulkUploadValidator.Models;
+﻿using BulkUploadValidator.Dtos;
+using BulkUploadValidator.Models;
 using Dapper;
 using MySql.Data.MySqlClient;
 using System.Data;
@@ -11,7 +12,7 @@ namespace BulkUploadValidator.Repository
         private readonly string _connectionString;
         private readonly MySqlConnection _connection;
 
-        private HashSet<string> _counties = new(StringComparer.OrdinalIgnoreCase);
+        private Dictionary<string, int> _counties = new(StringComparer.OrdinalIgnoreCase);
         private Dictionary<string, SubCounty> _subCountiesCache = new(StringComparer.OrdinalIgnoreCase);
         private Dictionary<string, LinkType> _linkTypesCache = new(StringComparer.OrdinalIgnoreCase);
         public LinkRepository(IConfiguration configuration)
@@ -64,8 +65,8 @@ namespace BulkUploadValidator.Repository
                 {
                     foreach (var item in result)
                     {
-                        if (!_counties.Contains(item.CountyName))
-                            _counties.Add(item.CountyName);
+                        if (!_counties.TryGetValue(item.CountyName, out _))
+                            _counties.Add(item.CountyName, item.CountyId);
                         _subCountiesCache.Add(item.SubCountyName, item);
                     }
                 }
@@ -94,12 +95,39 @@ namespace BulkUploadValidator.Repository
             }
         }
 
+        public ValidationResult ValidateLinkDto(LinkCreateDto linkCreateDto)
+        {
+            // Validate LinkType
+            if (!_linkTypesCache.TryGetValue(linkCreateDto.LinkType, out _))
+                return ValidationResult.Failure($"LinkType '{linkCreateDto.LinkType}' not found.");
+
+            if (!_subCountiesCache.TryGetValue(linkCreateDto.StartCountyName, out var path))
+                return new ValidationResult { IsSuccess = false, Error = $"SubCounty '{subCountyName}' not found." };
+            return ValidationResult.Failure($"SubCounty '{linkCreateDto.SubCountyName}' not found.");
+
+            if (!_counties.ContainsKey(countyName))
+                return new ValidationResult { IsSuccess = false, Error = $"County '{countyName}' does not exist." };
+
+            if (!string.Equals(path.CountyName, countyName, StringComparison.OrdinalIgnoreCase))
+                return new ValidationResult { IsSuccess = false, Error = $"SubCounty '{subCountyName}' is not in County '{countyName}'." };
+
+            if (!_linkTypesCache.ContainsKey(linkTypeName))
+                return new ValidationResult { IsSuccess = false, Error = $"LinkType '{linkTypeName}' is invalid." };
+
+            return new ValidationResult { IsSuccess = true };
+        }
+
+        public ValidationResult ValidateLinkDtos(List<LinkCreateDto> linkCreateDtos)
+        {
+            throw new NotImplementedException();
+        }
+
         public void ValidateSubCounty(string subCountyName, string countyName)
         {
             if (!_subCountiesCache.TryGetValue(subCountyName, out var path))
                 throw new Exception($"SubCounty '{subCountyName}' not found.");
 
-            if (!_counties.Contains(countyName))
+            if (!_counties.TryGetValue(countyName, out _))
                 throw new Exception($"County '{countyName}' does not exist.");
 
 

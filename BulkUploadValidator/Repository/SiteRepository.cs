@@ -1,4 +1,5 @@
-﻿using BulkUploadValidator.Models;
+﻿using BulkUploadValidator.Dtos;
+using BulkUploadValidator.Models;
 using Dapper;
 using MySql.Data.MySqlClient;
 using System.Data;
@@ -11,10 +12,11 @@ namespace BulkUploadValidator.Repository
         private readonly string _connectionString;
         private readonly MySqlConnection _connection;
 
-        private HashSet<string> _counties = new(StringComparer.OrdinalIgnoreCase);
-        private HashSet<string> _subCounties = new(StringComparer.OrdinalIgnoreCase);
-        private HashSet<string> _constituencies = new(StringComparer.OrdinalIgnoreCase);
+        private Dictionary<string, int> _counties = new(StringComparer.OrdinalIgnoreCase);
+        private Dictionary<string, int> _subCounties = new(StringComparer.OrdinalIgnoreCase);
+        private Dictionary<string, int> _constituencies = new(StringComparer.OrdinalIgnoreCase);
         private Dictionary<string, Ward> _wardsCache = new(StringComparer.OrdinalIgnoreCase);
+        private HashSet<string> _existentSites = new(StringComparer.OrdinalIgnoreCase);
         private Dictionary<string, SiteType> _siteTypesCache = new(StringComparer.OrdinalIgnoreCase);
 
         public SiteRepository(IConfiguration configuration)
@@ -75,12 +77,12 @@ namespace BulkUploadValidator.Repository
                 {
                     foreach (var item in result)
                     {
-                        if (!_constituencies.Contains(item.ConstituencyName))
-                            _constituencies.Add(item.ConstituencyName);
-                        if (!_subCounties.Contains(item.SubCountyName))
-                            _subCounties.Add(item.SubCountyName);
-                        if (!_counties.Contains(item.CountyName))
-                            _counties.Add(item.CountyName);
+                        if (!_constituencies.TryGetValue(item.ConstituencyName, out _))
+                            _constituencies.Add(item.ConstituencyName, item.ConstituencyId);
+                        if (!_subCounties.TryGetValue(item.SubCountyName, out _))
+                            _subCounties.Add(item.SubCountyName, item.SubCountyId);
+                        if (!_counties.TryGetValue(item.CountyName, out _))
+                            _counties.Add(item.CountyName, item.CountyId);
                         _wardsCache.Add(item.WardName, item);
                     }
                 }
@@ -93,10 +95,31 @@ namespace BulkUploadValidator.Repository
             }
         }
 
+        public async Task<List<string>> GetExistentSites(bool cache)
+        {
+            try
+            {
+                const string query = @"SELECT SiteName FROM SiteMaster;";
+
+                var result = (await _connection.QueryAsync<string>(query, commandType: CommandType.Text)).ToList();
+                if (cache)
+                    _existentSites.UnionWith(result);
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"An error occurred in {nameof(GetExistentSites)}: {ex}");
+                return null;
+            }
+        }
+
         public async Task ReadyCache()
         {
             try
             {
+                if (_existentSites.Count == 0)
+                    _ = await GetExistentSites(true);
                 if (_wardsCache.Keys.Count == 0)
                     _ = await GetAllValidWards(true);
                 if (_siteTypesCache.Keys.Count == 0)
@@ -108,18 +131,57 @@ namespace BulkUploadValidator.Repository
             }
         }
 
+        public ValidationResult ValidateSiteDto(SiteCreateDto siteCreateDto)
+        {
+            //Func runs after no dupes in excel. Now check that the rows do not already exist in db
+            if (_existentSites.TryGetValue(siteCreateDto.SiteName, out _))
+                return ValidationResult.Failure($"Site with name {siteCreateDto.SiteName} already exists.");
+
+            // Validate SiteType
+            if (!_siteTypesCache.TryGetValue(siteCreateDto.SiteType, out _))
+                return ValidationResult.Failure($"SiteType '{siteCreateDto.SiteType}' not found.");
+            if (_siteTypesCache[siteCreateDto.SiteType].IsActive != 1)
+                return ValidationResult.Failure($"SiteType '{siteCreateDto.SiteType}' is not active.");
+
+            // Validate Electorals exist
+            if (!_wardsCache.TryGetValue(siteCreateDto.WardName, out var path))
+                return ValidationResult.Failure($"Ward '{siteCreateDto.WardName}' not found.");
+
+            if (!_constituencies.TryGetValue(siteCreateDto.ConstituencyName, out _))
+                return ValidationResult.Failure($"Constituency '{siteCreateDto.ConstituencyName}' not found.");
+
+            if (!_subCounties.TryGetValue(siteCreateDto.SubCountyName, out _))
+                return ValidationResult.Failure($"SubCounty '{siteCreateDto.SubCountyName}' not found.");
+
+            if (!_counties.TryGetValue(siteCreateDto.CountyName, out _))
+                return ValidationResult.Failure($"County '{siteCreateDto.CountyName}' not found.");
+
+            // Validate Electorals nested correctly
+            if (!string.Equals(path.ConstituencyName, siteCreateDto.ConstituencyName, StringComparison.OrdinalIgnoreCase))
+                return ValidationResult.Failure($"Ward '{siteCreateDto.WardName}' does not exist in Constituency '{siteCreateDto.ConstituencyName}'.");
+
+            if (!string.Equals(path.SubCountyName, siteCreateDto.SubCountyName, StringComparison.OrdinalIgnoreCase))
+                return ValidationResult.Failure($"Ward '{siteCreateDto.WardName}' does not exist in SubCounty '{siteCreateDto.SubCountyName}'.");
+
+            if (!string.Equals(path.CountyName, siteCreateDto.CountyName, StringComparison.OrdinalIgnoreCase))
+                return ValidationResult.Failure($"Ward '{siteCreateDto.WardName}' does not exist in County '{siteCreateDto.CountyName}'.");
+
+            return ValidationResult.Success();
+        }
+
+
         public void ValidateWard(string wardName, string constituencyName, string subCountyName, string countyName)
         {
             if (!_wardsCache.TryGetValue(wardName, out var path))
                 throw new Exception($"Ward '{wardName}' not found.");
 
-            if (!_constituencies.Contains(constituencyName))
+            if (!_constituencies.TryGetValue(constituencyName, out _))
                 throw new Exception($"Constituency '{constituencyName}' does not exist.");
 
-            if (!_subCounties.Contains(subCountyName))
+            if (!_subCounties.TryGetValue(subCountyName, out _))
                 throw new Exception($"SubCounty '{subCountyName}' does not exist.");
 
-            if (!_counties.Contains(countyName))
+            if (!_counties.TryGetValue(countyName, out _))
                 throw new Exception($"County '{countyName}' does not exist.");
 
 
