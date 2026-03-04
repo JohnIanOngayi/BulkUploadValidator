@@ -1,0 +1,11 @@
+﻿using BulkUploadValidator.Models;
+
+namespace BulkUploadValidator.Repository
+{
+    public interface ISiteRepository
+    {
+        Task<List<Ward>?> GetAllValidWards(bool cache);
+        Task ReadyCache();
+        void ValidateWard(string wardName, string constituencyName, string subCountyName, string countyName);
+    }
+}

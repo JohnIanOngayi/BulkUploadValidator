@@ -1,0 +1,6 @@
+@BulkUploadValidator_HostAddress = http://localhost:5227
+
+GET {{BulkUploadValidator_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
