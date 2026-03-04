@@ -13,11 +13,38 @@ namespace BulkUploadValidator.Repository
 
         private HashSet<string> _counties = new(StringComparer.OrdinalIgnoreCase);
         private Dictionary<string, SubCounty> _subCountiesCache = new(StringComparer.OrdinalIgnoreCase);
+        private Dictionary<string, LinkType> _linkTypesCache = new(StringComparer.OrdinalIgnoreCase);
         public LinkRepository(IConfiguration configuration)
         {
             _config = configuration;
             _connectionString = _config.GetConnectionString("DefaultConnection");
             _connection = new MySqlConnection(connectionString: _connectionString);
+        }
+
+        public async Task<List<LinkType>?> GetAllValidLinkTypes(bool cache)
+        {
+            try
+            {
+                const string querySql = @"
+                    SELECT
+                        LinkTypeID as LinkTypeId, LinkTypeName, IsDelete as IsDeleted, IsActive
+                    FROM LinkTypeMaster
+                    WHERE IsDelete = 0;";
+
+                var result = (await _connection.QueryAsync<LinkType>(querySql, commandType: CommandType.Text)).ToList();
+                if (cache == true)
+                {
+                    foreach (var item in result)
+                        _linkTypesCache.Add(item.LinkTypeName, item);
+                }
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"An error occured in {nameof(GetAllValidLinkTypes)}: {ex}");
+                return null;
+            }
         }
 
         public async Task<List<SubCounty>?> GetAllValidSubCounties(bool cache)
@@ -42,6 +69,7 @@ namespace BulkUploadValidator.Repository
                         _subCountiesCache.Add(item.SubCountyName, item);
                     }
                 }
+
                 return result;
             }
             catch (Exception ex)
@@ -57,6 +85,8 @@ namespace BulkUploadValidator.Repository
             {
                 if (_subCountiesCache.Keys.Count == 0)
                     _ = await GetAllValidSubCounties(true);
+                if (_linkTypesCache.Keys.Count == 0)
+                    _ = await GetAllValidLinkTypes(true);
             }
             catch (Exception ex)
             {

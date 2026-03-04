@@ -23,6 +23,13 @@ namespace BulkUploadValidator.Controllers
             return wards != null ? Ok(wards) : StatusCode(500);
         }
 
+        [HttpGet("valdsitetypes")]
+        public async Task<ActionResult<List<LinkType>>> GetAllLinkTypes()
+        {
+            var result = await _siteRepository.GetAllValidSiteTypes(false);
+            return result != null ? Ok(result) : StatusCode(500);
+        }
+
         [HttpGet("downloadwards")]
         public async Task<ActionResult> ExportWards()
         {
@@ -81,5 +88,8 @@ namespace BulkUploadValidator.Controllers
                 return BadRequest(ex.Message.ToString());
             }
         }
+
+        //[HttpPost("UploadLinksExcel")]
+        //public async Task<IActionResult> UploadLinksExcel(IFormFile file)
     }
 }

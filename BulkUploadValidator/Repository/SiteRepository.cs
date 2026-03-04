@@ -15,12 +15,39 @@ namespace BulkUploadValidator.Repository
         private HashSet<string> _subCounties = new(StringComparer.OrdinalIgnoreCase);
         private HashSet<string> _constituencies = new(StringComparer.OrdinalIgnoreCase);
         private Dictionary<string, Ward> _wardsCache = new(StringComparer.OrdinalIgnoreCase);
+        private Dictionary<string, SiteType> _siteTypesCache = new(StringComparer.OrdinalIgnoreCase);
 
         public SiteRepository(IConfiguration configuration)
         {
             _config = configuration;
             _connectionString = _config.GetConnectionString("DefaultConnection");
             _connection = new MySqlConnection(connectionString: _connectionString);
+        }
+
+        public async Task<List<SiteType>?> GetAllValidSiteTypes(bool cache)
+        {
+            try
+            {
+                const string querySql = @"
+                    SELECT
+                        SiteTypeID as SiteTypeId, SiteTypeName, IsDelete as IsDeleted, IsActive
+                    FROM SiteTypeMaster
+                    WHERE IsDelete = 0;";
+
+                var result = (await _connection.QueryAsync<SiteType>(querySql, commandType: CommandType.Text)).ToList();
+                if (cache == true)
+                {
+                    foreach (var item in result)
+                        _siteTypesCache.Add(item.SiteTypeName, item);
+                }
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"An error occured in {nameof(GetAllValidSiteTypes)}: {ex}");
+                return null;
+            }
         }
 
         public async Task<List<Ward>?> GetAllValidWards(bool cache)
@@ -72,6 +99,8 @@ namespace BulkUploadValidator.Repository
             {
                 if (_wardsCache.Keys.Count == 0)
                     _ = await GetAllValidWards(true);
+                if (_siteTypesCache.Keys.Count == 0)
+                    _ = await GetAllValidSiteTypes(true);
             }
             catch (Exception ex)
             {

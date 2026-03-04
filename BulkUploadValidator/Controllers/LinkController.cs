@@ -23,6 +23,13 @@ namespace BulkUploadValidator.Controllers
             return Ok(validSubCounties);
         }
 
+        [HttpGet("valdlinktypes")]
+        public async Task<ActionResult<List<LinkType>>> GetAllLinkTypes()
+        {
+            var result = await _linkRepository.GetAllValidLinkTypes(false);
+            return result != null ? Ok(result) : StatusCode(500);
+        }
+
         [HttpGet("downloadsubcounties")]
         public async Task<ActionResult> ExportSubCounties()
         {
