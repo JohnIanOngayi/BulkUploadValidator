@@ -14,7 +14,9 @@ namespace BulkUploadValidator.Repository
         private Dictionary<string, int> _subCounties = new(StringComparer.OrdinalIgnoreCase);
         private Dictionary<string, int> _constituencies = new(StringComparer.OrdinalIgnoreCase);
         private Dictionary<string, Ward> _wardsCache = new(StringComparer.OrdinalIgnoreCase);
+
         private HashSet<string> _existentSites = new(StringComparer.OrdinalIgnoreCase);
+
         private Dictionary<string, SiteType> _siteTypesCache = new(StringComparer.OrdinalIgnoreCase);
 
         public SiteRepository(IConfiguration configuration)
@@ -134,13 +136,15 @@ namespace BulkUploadValidator.Repository
         public ValidationResult ValidateSiteDto(SiteCreateDto siteCreateDto)
         {
             //Func runs after no dupes in excel. Now check that the rows do not already exist in db
-            if (_existentSites.TryGetValue(siteCreateDto.SiteName, out _))
-                return ValidationResult.Failure($"Site with name {siteCreateDto.SiteName} already exists.");
 
-            // Validate SiteType
+            // check dupes in names
+            if (_existentSites.TryGetValue(siteCreateDto.SiteName, out _))
+                return ValidationResult.Failure($"Site with name '{siteCreateDto.SiteName}' already exists.");
+
+            // Validate SiteType exists and is active
             if (!_siteTypesCache.TryGetValue(siteCreateDto.SiteType, out _))
                 return ValidationResult.Failure($"SiteType '{siteCreateDto.SiteType}' not found.");
-            if (_siteTypesCache[siteCreateDto.SiteType].IsActive != 1)
+            if (Convert.ToInt32(_siteTypesCache[siteCreateDto.SiteType].IsActive) != 1)
                 return ValidationResult.Failure($"SiteType '{siteCreateDto.SiteType}' is not active.");
 
             // Validate Electorals exist
@@ -196,30 +200,31 @@ namespace BulkUploadValidator.Repository
         public async Task<bool> BulkInsertSites(List<SiteCreateDto> sites)
         {
             var table = new DataTable();
+
             table.Columns.Add("SiteName", typeof(string));
-            table.Columns.Add("SiteTypeName", typeof(string));
-            table.Columns.Add("LocationName", typeof(string));
+            table.Columns.Add("SiteTypeId", typeof(int));
+            table.Columns.Add("Location", typeof(string));
             table.Columns.Add("GPSLatitude", typeof(double));
             table.Columns.Add("GPSLongitude", typeof(double));
+            table.Columns.Add("CountyId", typeof(int));
+            table.Columns.Add("SubCountyId", typeof(int));
+            table.Columns.Add("ConstituencyId", typeof(int));
+            table.Columns.Add("WardId", typeof(int));
             table.Columns.Add("NoOfInternetUsers", typeof(int));
-            table.Columns.Add("CountyName", typeof(string));
-            table.Columns.Add("SubCountyName", typeof(string));
-            table.Columns.Add("ConstituencyName", typeof(string));
-            table.Columns.Add("WardName", typeof(string));
 
             foreach (var site in sites)
             {
                 table.Rows.Add(
                     site.SiteName,
-                    site.SiteType,
+                    _siteTypesCache[site.SiteType],
                     site.LocationName,
                     site.GPSLatitude,
                     site.GPSLongitude,
-                    site.NoOfInternetUsers,
-                    site.CountyName,
-                    site.SubCountyName,
-                    site.ConstituencyName,
-                    site.WardName
+                    _counties[site.CountyName],
+                    _subCounties[site.SubCountyName],
+                    _constituencies[site.ConstituencyName],
+                    _wardsCache[site.WardName],
+                    site.NoOfInternetUsers
                 );
             }
 
@@ -236,11 +241,11 @@ namespace BulkUploadValidator.Repository
                 bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(2, "LocationName"));
                 bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(3, "GPSLatitude"));
                 bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(4, "GPSLongitude"));
+                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(6, "CountyId"));
+                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(7, "SubCountyId"));
+                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(8, "ConstituencyId"));
+                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(9, "WardId"));
                 bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(5, "NoOfInternetUsers"));
-                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(6, "CountyName"));
-                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(7, "SubCountyName"));
-                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(8, "ConstituencyName"));
-                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(9, "WardName"));
 
                 await bulkCopy.WriteToServerAsync(table);
                 await transaction.CommitAsync();

@@ -17,21 +17,21 @@ namespace BulkUploadValidator.Controllers
             _siteRepository = repository;
         }
 
-        [HttpGet("validwards")]
+        [HttpGet("ValidWards")]
         public async Task<ActionResult<List<Ward>>> GetValidWards()
         {
             var wards = await _siteRepository.GetAllValidWards(false);
             return wards != null ? Ok(wards) : StatusCode(500);
         }
 
-        [HttpGet("valdsitetypes")]
+        [HttpGet("ValidSiteTypes")]
         public async Task<ActionResult<List<LinkType>>> GetAllLinkTypes()
         {
             var result = await _siteRepository.GetAllValidSiteTypes(false);
             return result != null ? Ok(result) : StatusCode(500);
         }
 
-        [HttpGet("downloadwards")]
+        [HttpGet("DownloadWards")]
         public async Task<ActionResult> ExportWards()
         {
             using (var workbook = new XLWorkbook())
@@ -74,7 +74,7 @@ namespace BulkUploadValidator.Controllers
             }
         }
 
-        [HttpPost("validateward")]
+        [HttpPost("ValidateWard")]
         public async Task<IActionResult> ValidateWard(WardDto ward)
         {
             try
@@ -90,7 +90,22 @@ namespace BulkUploadValidator.Controllers
             }
         }
 
-        [HttpPost("uploadSitesExcel")]
+        [HttpPost("ValidateSiteCreateDto")]
+        public async Task<IActionResult> ValidateSiteCreateDto(SiteCreateDto site)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            await _siteRepository.ReadyCache();
+
+            var result = _siteRepository.ValidateSiteDto(site);
+            if (result.Error != null)
+                return BadRequest(result.Error);
+
+            return Ok($"Site is valid.");
+        }
+
+        [HttpPost("UploadSitesExcel")]
         public async Task<IActionResult> UploadSitesExcel(IFormFile file)
         {
             // empty file or no file

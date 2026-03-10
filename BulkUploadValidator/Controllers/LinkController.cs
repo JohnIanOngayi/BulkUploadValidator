@@ -1,6 +1,7 @@
 using BulkUploadValidator.Dtos;
 using BulkUploadValidator.Models;
 using BulkUploadValidator.Repository;
+using BulkUploadValidator.Services;
 using ClosedXML.Excel;
 using Microsoft.AspNetCore.Mvc;
 
@@ -15,7 +16,7 @@ namespace BulkUploadValidator.Controllers
         {
             _linkRepository = linkRepository;
         }
-        [HttpGet("validsubcounties")]
+        [HttpGet("ValidSubCounties")]
         public async Task<ActionResult<List<SubCounty>>> GetAllSubCounties()
         {
             await _linkRepository.ReadyCache();
@@ -23,14 +24,14 @@ namespace BulkUploadValidator.Controllers
             return Ok(validSubCounties);
         }
 
-        [HttpGet("valdlinktypes")]
+        [HttpGet("ValidLinkTypes")]
         public async Task<ActionResult<List<LinkType>>> GetAllLinkTypes()
         {
             var result = await _linkRepository.GetAllValidLinkTypes(false);
             return result != null ? Ok(result) : StatusCode(500);
         }
 
-        [HttpGet("downloadsubcounties")]
+        [HttpGet("DownloadSubCounties")]
         public async Task<ActionResult> ExportSubCounties()
         {
             using (var workbook = new XLWorkbook())
@@ -69,7 +70,7 @@ namespace BulkUploadValidator.Controllers
             }
         }
 
-        [HttpPost("validatesubcounty")]
+        [HttpPost("ValidateSubCounty")]
         public async Task<IActionResult> ValidateSubCounty(SubCountyDto dto)
         {
             try
@@ -83,6 +84,62 @@ namespace BulkUploadValidator.Controllers
                 Console.WriteLine($"An error occured in {nameof(ValidateSubCounty)}: {ex.Message}");
                 return BadRequest(ex.Message.ToString());
             }
+        }
+
+        [HttpPost("ValidateLinkCreateDto")]
+        public async Task<IActionResult> ValidateLinkCreateDto(LinkCreateDto site)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            await _linkRepository.ReadyCache();
+
+            var result = _linkRepository.ValidateLinkDto(site);
+            if (result.Error != null)
+                return BadRequest(result.Error);
+
+            return Ok($"Link is valid.");
+        }
+
+        [HttpPost("UploadLinksExcel")]
+        public async Task<IActionResult> UploadLinksExcel(IFormFile file)
+        {
+            // empty file or no file
+            if (file == null || file.Length == 0)
+                return BadRequest("Invalid file.");
+            if (!file.FileName.EndsWith(".xlsx") && !file.FileName.EndsWith(".xls"))
+                return BadRequest("Only Excel files (.xlsx, .xls) are allowed.");
+
+            var helper = new ExcelHelper(file);
+            var result = await helper.ParseLinkCreateDtos();
+
+            // zero rows
+            if (result.ValidItems.Count == 0)
+                return BadRequest(new { Message = "Excel has no rows.", Errors = new List<string> { "Excel has no rows." } });
+
+            // duplicates, blank cells, wrong data types in cells
+            if (result.HasErrors)
+                return BadRequest(new { Message = "Excel contains validation errors.", Errors = result.Errors });
+
+            await _linkRepository.ReadyCache();
+
+            // clashes with db, wrong electoral relationships, existent records etc
+            var repoErrors = new List<string>();
+            foreach (var parsedLink in result.ValidItems)
+            {
+                var validation = _linkRepository.ValidateLinkDto(parsedLink);
+                if (!validation.IsSuccess)
+                    repoErrors.Add(validation.Error!);
+            }
+            if (repoErrors.Count > 0)
+                return BadRequest(new { Message = "Validation failed.", Errors = repoErrors });
+
+            // insert / any error is now an infra error (500)
+            var success = await _linkRepository.BulkInsertLinks(result.ValidItems);
+            if (!success)
+                return StatusCode(500, "An error occurred while inserting sites.");
+
+            return Ok($"{result.ValidItems.Count} links inserted successfully.");
         }
     }
 }
