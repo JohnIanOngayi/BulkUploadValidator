@@ -1,16 +1,14 @@
 ﻿using BulkUploadValidator.Dtos;
 using BulkUploadValidator.Models;
 using Dapper;
-using MySql.Data.MySqlClient;
+using MySqlConnector;
 using System.Data;
 
 namespace BulkUploadValidator.Repository
 {
     public class SiteRepository : ISiteRepository
     {
-        private readonly IConfiguration _config;
         private readonly string _connectionString;
-        private readonly MySqlConnection _connection;
 
         private Dictionary<string, int> _counties = new(StringComparer.OrdinalIgnoreCase);
         private Dictionary<string, int> _subCounties = new(StringComparer.OrdinalIgnoreCase);
@@ -21,10 +19,10 @@ namespace BulkUploadValidator.Repository
 
         public SiteRepository(IConfiguration configuration)
         {
-            _config = configuration;
-            _connectionString = _config.GetConnectionString("DefaultConnection");
-            _connection = new MySqlConnection(connectionString: _connectionString);
+            _connectionString = configuration.GetConnectionString("DefaultConnection");
         }
+
+        private IDbConnection CreateConnection() => new MySqlConnection(_connectionString);
 
         public async Task<List<SiteType>?> GetAllValidSiteTypes(bool cache)
         {
@@ -36,7 +34,8 @@ namespace BulkUploadValidator.Repository
                     FROM SiteTypeMaster
                     WHERE IsDelete = 0;";
 
-                var result = (await _connection.QueryAsync<SiteType>(querySql, commandType: CommandType.Text)).ToList();
+                using var connection = CreateConnection();
+                var result = (await connection.QueryAsync<SiteType>(querySql, commandType: CommandType.Text)).ToList();
                 if (cache == true)
                 {
                     foreach (var item in result)
@@ -71,7 +70,8 @@ namespace BulkUploadValidator.Repository
                         ON sc.CountyID = c.CountyId
                     ORDER BY WardName ASC;";
 
-                var result = (await _connection.QueryAsync<Ward>(querySql, commandType: CommandType.Text)).ToList();
+                using var connection = CreateConnection();
+                var result = (await connection.QueryAsync<Ward>(querySql, commandType: CommandType.Text)).ToList();
 
                 if (cache == true)
                 {
@@ -101,7 +101,8 @@ namespace BulkUploadValidator.Repository
             {
                 const string query = @"SELECT SiteName FROM SiteMaster;";
 
-                var result = (await _connection.QueryAsync<string>(query, commandType: CommandType.Text)).ToList();
+                using var connection = CreateConnection();
+                var result = (await connection.QueryAsync<string>(query, commandType: CommandType.Text)).ToList();
                 if (cache)
                     _existentSites.UnionWith(result);
 
@@ -118,12 +119,11 @@ namespace BulkUploadValidator.Repository
         {
             try
             {
-                if (_existentSites.Count == 0)
-                    _ = await GetExistentSites(true);
-                if (_wardsCache.Keys.Count == 0)
-                    _ = await GetAllValidWards(true);
-                if (_siteTypesCache.Keys.Count == 0)
-                    _ = await GetAllValidSiteTypes(true);
+                await Task.WhenAll(
+                    GetExistentSites(true),
+                    GetAllValidWards(true),
+                    GetAllValidSiteTypes(true)
+                    );
             }
             catch (Exception ex)
             {
@@ -169,7 +169,6 @@ namespace BulkUploadValidator.Repository
             return ValidationResult.Success();
         }
 
-
         public void ValidateWard(string wardName, string constituencyName, string subCountyName, string countyName)
         {
             if (!_wardsCache.TryGetValue(wardName, out var path))
@@ -184,7 +183,6 @@ namespace BulkUploadValidator.Repository
             if (!_counties.TryGetValue(countyName, out _))
                 throw new Exception($"County '{countyName}' does not exist.");
 
-
             if (!string.Equals(path.ConstituencyName, constituencyName, StringComparison.OrdinalIgnoreCase))
                 throw new Exception($"Ward '{wardName}' does not exist in Constituency '{constituencyName}'.");
 
@@ -193,6 +191,67 @@ namespace BulkUploadValidator.Repository
 
             if (!string.Equals(path.CountyName, countyName, StringComparison.OrdinalIgnoreCase))
                 throw new Exception($"Ward '{wardName}' is not in County '{countyName}'.");
+        }
+
+        public async Task<bool> BulkInsertSites(List<SiteCreateDto> sites)
+        {
+            var table = new DataTable();
+            table.Columns.Add("SiteName", typeof(string));
+            table.Columns.Add("SiteTypeName", typeof(string));
+            table.Columns.Add("LocationName", typeof(string));
+            table.Columns.Add("GPSLatitude", typeof(double));
+            table.Columns.Add("GPSLongitude", typeof(double));
+            table.Columns.Add("NoOfInternetUsers", typeof(int));
+            table.Columns.Add("CountyName", typeof(string));
+            table.Columns.Add("SubCountyName", typeof(string));
+            table.Columns.Add("ConstituencyName", typeof(string));
+            table.Columns.Add("WardName", typeof(string));
+
+            foreach (var site in sites)
+            {
+                table.Rows.Add(
+                    site.SiteName,
+                    site.SiteType,
+                    site.LocationName,
+                    site.GPSLatitude,
+                    site.GPSLongitude,
+                    site.NoOfInternetUsers,
+                    site.CountyName,
+                    site.SubCountyName,
+                    site.ConstituencyName,
+                    site.WardName
+                );
+            }
+
+            using var connection = new MySqlConnection(_connectionString);
+            await connection.OpenAsync();
+            using var transaction = await connection.BeginTransactionAsync();
+
+            try
+            {
+                var bulkCopy = new MySqlBulkCopy(connection, transaction);
+                bulkCopy.DestinationTableName = "SiteMaster";
+                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(0, "SiteName"));
+                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(1, "SiteTypeName"));
+                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(2, "LocationName"));
+                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(3, "GPSLatitude"));
+                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(4, "GPSLongitude"));
+                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(5, "NoOfInternetUsers"));
+                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(6, "CountyName"));
+                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(7, "SubCountyName"));
+                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(8, "ConstituencyName"));
+                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(9, "WardName"));
+
+                await bulkCopy.WriteToServerAsync(table);
+                await transaction.CommitAsync();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                Console.WriteLine($"An error occurred in {nameof(BulkInsertSites)}: {ex}");
+                return false;
+            }
         }
     }
 }

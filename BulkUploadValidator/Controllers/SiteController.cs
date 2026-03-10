@@ -93,21 +93,42 @@ namespace BulkUploadValidator.Controllers
         [HttpPost("uploadSitesExcel")]
         public async Task<IActionResult> UploadSitesExcel(IFormFile file)
         {
+            // empty file or no file
+            if (file == null || file.Length == 0)
+                return BadRequest("Invalid file.");
+            if (!file.FileName.EndsWith(".xlsx") && !file.FileName.EndsWith(".xls"))
+                return BadRequest("Only Excel files (.xlsx, .xls) are allowed.");
+
             var helper = new ExcelHelper(file);
             var result = await helper.ParseSiteCreateDtos();
 
-            // Check validation errors in controller before passing to repo
-            if (result.HasErrors)
-            {
-                return BadRequest(new
-                {
-                    Message = "Excel contains validation errors.",
-                    Errors = result.Errors
-                });
-            }
+            // zero rows
+            if (result.ValidItems.Count == 0)
+                return BadRequest(new { Message = "Excel has no rows.", Errors = new List<string> { "Excel has no rows." } });
 
-            // Repo check
-            for
+            // duplicates, blank cells, wrong data types in cells
+            if (result.HasErrors)
+                return BadRequest(new { Message = "Excel contains validation errors.", Errors = result.Errors });
+
+            await _siteRepository.ReadyCache();
+
+            // clashes with db, wrong electoral relationships, existent records etc
+            var repoErrors = new List<string>();
+            foreach (var parsedSite in result.ValidItems)
+            {
+                var validation = _siteRepository.ValidateSiteDto(parsedSite);
+                if (!validation.IsSuccess)
+                    repoErrors.Add(validation.Error!);
+            }
+            if (repoErrors.Count > 0)
+                return BadRequest(new { Message = "Validation failed.", Errors = repoErrors });
+
+            // insert / any error is now an infra error (500)
+            var success = await _siteRepository.BulkInsertSites(result.ValidItems);
+            if (!success)
+                return StatusCode(500, "An error occurred while inserting sites.");
+
+            return Ok($"{result.ValidItems.Count} sites inserted successfully.");
         }
     }
 }

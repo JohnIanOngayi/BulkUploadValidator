@@ -12,5 +12,6 @@ namespace BulkUploadValidator.Repository
         void ValidateWard(string wardName, string constituencyName, string subCountyName, string countyName);
 
         ValidationResult ValidateSiteDto(SiteCreateDto siteCreateDto);
+        Task<bool> BulkInsertSites(List<SiteCreateDto> siteCreateDtos);
     }
 }
