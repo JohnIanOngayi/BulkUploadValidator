@@ -12,9 +12,11 @@ namespace BulkUploadValidator.Controllers
     public class SiteController : ControllerBase
     {
         private readonly ISiteRepository _siteRepository;
-        public SiteController(ISiteRepository repository)
+        private readonly TemplateGenerator<SiteTemplateConfig> _siteTemplateGen;
+        public SiteController(ISiteRepository repository, TemplateGenerator<SiteTemplateConfig> siteTemplateGen)
         {
             _siteRepository = repository;
+            _siteTemplateGen = siteTemplateGen;
         }
 
         [HttpGet("ValidWards")]
@@ -72,6 +74,15 @@ namespace BulkUploadValidator.Controllers
                     return StatusCode(500);
                 }
             }
+        }
+
+        [HttpGet("DownloadTemplate")]
+        public async Task<IActionResult> DownloadTemplate()
+        {
+            var bytes = await _siteTemplateGen.GenerateTemplateAsync();
+            return File(bytes,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "SiteBulkUploadTemplate.xlsx");
         }
 
         [HttpPost("ValidateWard")]

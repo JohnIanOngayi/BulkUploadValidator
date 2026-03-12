@@ -1,5 +1,6 @@
 
 using BulkUploadValidator.Repository;
+using BulkUploadValidator.Services;
 using Scalar.AspNetCore;
 
 namespace BulkUploadValidator
@@ -13,6 +14,9 @@ namespace BulkUploadValidator
             // Add services to the container.
             builder.Services.AddScoped<ILinkRepository, LinkRepository>();
             builder.Services.AddScoped<ISiteRepository, SiteRepository>();
+
+            builder.Services.AddScoped<TemplateGenerator<SiteTemplateConfig>>();
+            builder.Services.AddScoped<TemplateGenerator<LinkTemplateConfig>>();
 
             builder.Services.AddControllers();
             // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
