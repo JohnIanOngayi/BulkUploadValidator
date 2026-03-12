@@ -12,9 +12,11 @@ namespace BulkUploadValidator.Controllers
     public class LinkController : ControllerBase
     {
         private readonly ILinkRepository _linkRepository;
-        public LinkController(ILinkRepository linkRepository)
+        private readonly TemplateGenerator<LinkTemplateConfig> _linkTemplateGen;
+        public LinkController(ILinkRepository linkRepository, TemplateGenerator<LinkTemplateConfig> linkTemplateGen)
         {
             _linkRepository = linkRepository;
+            _linkTemplateGen = linkTemplateGen;
         }
         [HttpGet("ValidSubCounties")]
         public async Task<ActionResult<List<SubCounty>>> GetAllSubCounties()
@@ -99,6 +101,40 @@ namespace BulkUploadValidator.Controllers
                 return BadRequest(result.Error);
 
             return Ok($"Link is valid.");
+        }
+
+        [HttpGet("DownloadTemplate")]
+        public async Task<IActionResult> DownloadTemplate()
+        {
+            var bytes = await _linkTemplateGen.GenerateTemplateAsync();
+            return File(bytes,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "LinkBulkUploadTemplate.xlsx");
+        }
+
+        [HttpGet("DebugTemplate")]
+        public async Task<IActionResult> DebugLinkTemplate()
+        {
+            var bytes = await _linkTemplateGen.GenerateTemplateAsync();
+
+            using var stream = new MemoryStream(bytes);
+            using var workbook = new XLWorkbook(stream);
+            var lists = workbook.Worksheet("Lists");
+
+            var namedRanges = workbook.DefinedNames
+                .Select(nr => new { nr.Name, Address = nr.Ranges.ToString() })
+                .ToList();
+
+            // Also check first row of each column to see what's there
+            var columns = lists.ColumnsUsed()
+                .Select(c => new
+                {
+                    Col = c.ColumnNumber(),
+                    Header = c.Cell(1).Value.ToString(),
+                    Count = c.CellsUsed().Count()
+                }).ToList();
+
+            return Ok(new { namedRanges, columns });
         }
 
         [HttpPost("UploadLinksExcel")]
