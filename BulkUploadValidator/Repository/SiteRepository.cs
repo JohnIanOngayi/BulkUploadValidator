@@ -41,7 +41,7 @@ namespace BulkUploadValidator.Repository
                 if (cache == true)
                 {
                     foreach (var item in result)
-                        _siteTypesCache.Add(item.SiteTypeName, item);
+                        _siteTypesCache.Add(item.SiteTypeName.Trim().ToUpperInvariant(), item);
                 }
 
                 return result;
@@ -79,6 +79,11 @@ namespace BulkUploadValidator.Repository
                 {
                     foreach (var item in result)
                     {
+                        item.WardName = item.WardName.Trim().ToUpperInvariant();
+                        item.ConstituencyName = item.ConstituencyName.Trim().ToUpperInvariant();
+                        item.SubCountyName = item.SubCountyName.Trim().ToUpperInvariant();
+                        item.CountyName = item.CountyName.Trim().ToUpperInvariant();
+
                         if (!_constituencies.TryGetValue(item.ConstituencyName, out _))
                             _constituencies.Add(item.ConstituencyName, item.ConstituencyId);
                         if (!_subCounties.TryGetValue(item.SubCountyName, out _))
@@ -106,7 +111,7 @@ namespace BulkUploadValidator.Repository
                 using var connection = CreateConnection();
                 var result = (await connection.QueryAsync<string>(query, commandType: CommandType.Text)).ToList();
                 if (cache)
-                    _existentSites.UnionWith(result);
+                    _existentSites.UnionWith(result.Select(x => x.Trim().ToUpperInvariant()));
 
                 return result;
             }
@@ -136,6 +141,11 @@ namespace BulkUploadValidator.Repository
         public ValidationResult ValidateSiteDto(SiteCreateDto siteCreateDto)
         {
             //Func runs after no dupes in excel. Now check that the rows do not already exist in db
+            siteCreateDto.SiteName = siteCreateDto.SiteName.Trim().ToUpperInvariant();
+            siteCreateDto.WardName = siteCreateDto.WardName.Trim().ToUpperInvariant();
+            siteCreateDto.ConstituencyName = siteCreateDto.ConstituencyName.Trim().ToUpperInvariant();
+            siteCreateDto.SubCountyName = siteCreateDto.SubCountyName.Trim().ToUpperInvariant();
+            siteCreateDto.CountyName = siteCreateDto.CountyName.Trim().ToUpperInvariant();
 
             // check dupes in names
             if (_existentSites.TryGetValue(siteCreateDto.SiteName, out _))
@@ -216,14 +226,14 @@ namespace BulkUploadValidator.Repository
             {
                 table.Rows.Add(
                     site.SiteName,
-                    _siteTypesCache[site.SiteType],
+                    _siteTypesCache[site.SiteType].SiteTypeId,
                     site.LocationName,
                     site.GPSLatitude,
                     site.GPSLongitude,
                     _counties[site.CountyName],
                     _subCounties[site.SubCountyName],
                     _constituencies[site.ConstituencyName],
-                    _wardsCache[site.WardName],
+                    _wardsCache[site.WardName].WardId,
                     site.NoOfInternetUsers
                 );
             }

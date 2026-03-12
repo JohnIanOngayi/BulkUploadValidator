@@ -1,5 +1,4 @@
-﻿/* JetBrains Mono */
-using BulkUploadValidator.Dtos;
+﻿using BulkUploadValidator.Dtos;
 using BulkUploadValidator.Models;
 using ClosedXML.Excel;
 
@@ -45,7 +44,7 @@ namespace BulkUploadValidator.Services
                     var prop = typeof(T).GetProperty(mapping.Key);
                     if (prop == null) continue;
 
-                    var cellValue = cell.GetValue<object>();
+                    var cellValue = cell.GetValue<string>().Trim();
                     bool isMissing = cellValue == null || string.IsNullOrWhiteSpace(cellValue.ToString());
 
                     if (isMissing)
@@ -70,7 +69,7 @@ namespace BulkUploadValidator.Services
                 if (rowHasError) continue;
 
                 // Validate Unique Constraint
-                var uniqueVal = typeof(T).GetProperty(uniqueFieldName)?.GetValue(dto)?.ToString() ?? "Unknown";
+                var uniqueVal = typeof(T).GetProperty(uniqueFieldName)?.GetValue(dto)?.ToString().Trim() ?? "Unknown";
                 if (!uniqueKeyTracker.ContainsKey(uniqueVal)) uniqueKeyTracker[uniqueVal] = new List<int>();
                 uniqueKeyTracker[uniqueVal].Add(row.RowNumber());
 
@@ -89,12 +88,12 @@ namespace BulkUploadValidator.Services
         // Mappings
         private Dictionary<string, int> GetSitePropertyMap(IXLRangeRow headerRow) => GetMap(headerRow, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            { "SiteName", nameof(SiteCreateDto.SiteName) },
-            { "SiteType", nameof(SiteCreateDto.SiteType) },
-            { "Location", nameof(SiteCreateDto.LocationName) },
-            { "GPSLatitude", nameof(SiteCreateDto.GPSLatitude) },
-            { "GPSLongitude", nameof(SiteCreateDto.GPSLongitude) },
-            { "NoOfInternetUsers", nameof(SiteCreateDto.NoOfInternetUsers) },
+            { "Site Name", nameof(SiteCreateDto.SiteName) },
+            { "Site Type", nameof(SiteCreateDto.SiteType) },
+            { "Location Name", nameof(SiteCreateDto.LocationName) },
+            { "GPS Latitude", nameof(SiteCreateDto.GPSLatitude) },
+            { "GPS Longitude", nameof(SiteCreateDto.GPSLongitude) },
+            { "No. of Internet Users", nameof(SiteCreateDto.NoOfInternetUsers) },
             { "County", nameof(SiteCreateDto.CountyName) },
             { "SubCounty", nameof(SiteCreateDto.SubCountyName) },
             { "Constituency", nameof(SiteCreateDto.ConstituencyName) },
@@ -103,8 +102,8 @@ namespace BulkUploadValidator.Services
 
         private Dictionary<string, int> GetLinkPropertyMap(IXLRangeRow headerRow) => GetMap(headerRow, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            { "LinkName", nameof(LinkCreateDto.LinkName) },
-            { "LinkType", nameof(LinkCreateDto.LinkType) },
+            { "Link Name", nameof(LinkCreateDto.LinkName) },
+            { "Link Type", nameof(LinkCreateDto.LinkType) },
             { "Start Location", nameof(LinkCreateDto.StartLocation) },
             { "Start Latitude", nameof(LinkCreateDto.StartLatitude) },
             { "Start Longitude", nameof(LinkCreateDto.StartLongitude) },

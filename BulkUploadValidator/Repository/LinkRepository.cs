@@ -39,7 +39,7 @@ namespace BulkUploadValidator.Repository
                 if (cache == true)
                 {
                     foreach (var item in result)
-                        _linkTypesCache.Add(item.LinkTypeName, item);
+                        _linkTypesCache.Add(item.LinkTypeName.Trim().ToUpperInvariant(), item);
                 }
 
                 return result;
@@ -68,6 +68,9 @@ namespace BulkUploadValidator.Repository
                 {
                     foreach (var item in result)
                     {
+                        item.CountyName.Trim().ToUpperInvariant();
+                        item.SubCountyName.Trim().ToUpperInvariant();
+
                         if (!_countiesCache.TryGetValue(item.CountyName, out _))
                             _countiesCache.Add(item.CountyName, item.CountyId);
                         _subCountiesCache.Add(item.SubCountyName, item);
@@ -92,7 +95,7 @@ namespace BulkUploadValidator.Repository
                 using var connection = CreateConnection();
                 var result = (await connection.QueryAsync<string>(query, commandType: CommandType.Text)).ToList();
                 if (cache)
-                    _existentLinks.UnionWith(result);
+                    _existentLinks.UnionWith(result.Select(x => x.Trim().ToUpperInvariant()));
 
                 return result;
             }
@@ -121,6 +124,13 @@ namespace BulkUploadValidator.Repository
 
         public ValidationResult ValidateLinkDto(LinkCreateDto linkCreateDto)
         {
+            linkCreateDto.LinkName = linkCreateDto.LinkName.Trim().ToUpperInvariant();
+            linkCreateDto.LinkType = linkCreateDto.LinkType.Trim().ToUpperInvariant();
+            linkCreateDto.StartSubCountyName = linkCreateDto.StartSubCountyName.Trim().ToUpperInvariant();
+            linkCreateDto.EndSubCountyName = linkCreateDto.EndSubCountyName.Trim().ToUpperInvariant();
+            linkCreateDto.StartCountyName = linkCreateDto.StartCountyName.Trim().ToUpperInvariant();
+            linkCreateDto.EndCountyName = linkCreateDto.EndCountyName.Trim().ToUpperInvariant();
+
             if (_existentLinks.TryGetValue(linkCreateDto.LinkName, out _))
                 return ValidationResult.Failure($"Link with name '{linkCreateDto.LinkName}' already exists.");
 
@@ -189,19 +199,19 @@ namespace BulkUploadValidator.Repository
             {
                 table.Rows.Add(
                     link.LinkName,
-                    _linkTypesCache[link.LinkType],
+                    _linkTypesCache[link.LinkType].LinkTypeId,
 
                     link.StartLocation,
                     link.StartLatitude,
                     link.StartLongitude,
                     _countiesCache[link.StartCountyName],
-                    _subCountiesCache[link.StartSubCountyName],
+                    _subCountiesCache[link.StartSubCountyName].SubCountyId,
 
                     link.EndLocation,
                     link.EndLatitude,
                     link.StartLongitude,
                     _countiesCache[link.EndCountyName],
-                    _subCountiesCache[link.EndSubCountyName]
+                    _subCountiesCache[link.EndSubCountyName].SubCountyId
                 );
             }
 
