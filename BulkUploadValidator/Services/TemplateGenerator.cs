@@ -106,23 +106,25 @@ namespace BulkUploadValidator.Services
             List<County> counties,
             List<SubCounty> subCounties,
             List<Constituency> constituencies,
-            List<Ward> wards
-            )
         {
             int col = 1;
 
+            // Column(s) for the entity type (SiteType / LinkType)
             col = WriteList(lists, col, types.Select(t => t.Name), _config.TypeListRangeName);
+
+            // County list — shared across all cascade chains
             col = WriteList(lists, col, counties.Select(c => c.CountyName), "CountyList");
 
             // Write ONCE — not per cascade
-            foreach (var county in counties)
-            {
-                var subs = subCounties
-                    .Where(s => s.CountyId == county.CountyId)
-                    .Select(s => s.SubCountyName)
-                    .ToList();
-                col = WriteList(lists, col, subs, SafeName(county.CountyName));
-            }
+                foreach (var county in counties)
+                {
+                    var subs = subCounties
+                        .Where(s => s.CountyId == county.CountyId)
+                        .Select(s => s.SubCountyName)
+                        .ToList();
+
+                    col = WriteList(lists, col, subs, SafeName(county.CountyName));
+                }
 
             // Full cascade (Constituency + Ward) also written once
             if (_config.ElectoralCascades.Any(c => c.Count >= 4))
@@ -133,15 +135,18 @@ namespace BulkUploadValidator.Services
                         .Where(c => c.SubCountyId == sub.SubCountyId)
                         .Select(c => c.ConstituencyName)
                         .ToList();
+
                     col = WriteList(lists, col, cons, SafeName(sub.SubCountyName));
                 }
 
+                // Ward lists keyed by Constituency
                 foreach (var con in constituencies)
                 {
                     var ws = wards
                         .Where(w => w.ConstituencyId == con.ConstituencyId)
                         .Select(w => w.WardName)
                         .ToList();
+
                     col = WriteList(lists, col, ws, SafeName(con.ConstituencyName));
                 }
             }
