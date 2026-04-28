@@ -33,8 +33,12 @@ namespace BulkUploadValidator.Repository
                 const string querySql = @"
                     SELECT
                         SiteTypeID as SiteTypeId, SiteTypeName, IsDelete as IsDeleted, IsActive
-                    FROM SiteTypeMaster
-                    WHERE IsDelete = 0;";
+                    FROM 
+                        SiteTypeMaster
+                    WHERE 
+                        IsDelete = 0 AND IsActive = 1
+                    ORDER BY 
+                        SiteTypeName ASC;";
 
                 using var connection = CreateConnection();
                 var result = (await connection.QueryAsync<SiteType>(querySql, commandType: CommandType.Text)).ToList();
@@ -71,6 +75,7 @@ namespace BulkUploadValidator.Repository
                     JOIN County_Master c
                         ON sc.CountyID = c.CountyId
                     WHERE
+                        w.IsDelete = 0 AND w.IsActive = 1
                     ORDER BY WardName ASC;";
 
                 using var connection = CreateConnection();

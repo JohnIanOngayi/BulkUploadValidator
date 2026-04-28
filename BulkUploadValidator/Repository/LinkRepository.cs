@@ -31,8 +31,12 @@ namespace BulkUploadValidator.Repository
                 const string querySql = @"
                     SELECT
                         LinkTypeID as LinkTypeId, LinkTypeName, IsDelete as IsDeleted, IsActive
-                    FROM LinkTypeMaster
-                    WHERE IsDelete = 0;";
+                    FROM 
+                        LinkTypeMaster
+                    WHERE 
+                        IsDelete = 0 AND IsActive = 1
+                    ORDER BY
+                        LinkTypeName ASC;";
 
                 using var connection = CreateConnection();
                 var result = (await connection.QueryAsync<LinkType>(querySql, commandType: CommandType.Text)).ToList();
@@ -58,8 +62,14 @@ namespace BulkUploadValidator.Repository
                 const string querySql = @"
                     SELECT 
                         s.SubCountyID as SubCountyId, s.SubCountyName, c.CountyID as CountyId, c.CountyName
-                    FROM SubCountyMaster s
-                    JOIN County_Master c ON s.CountyID = c.CountyID;
+                    FROM 
+                        SubCountyMaster s
+                    JOIN 
+                        County_Master c ON s.CountyID = c.CountyID
+                    WHERE
+                        s.IsDelete = 0 AND s.IsActive = 1
+                    ORDER BY
+                        s.SubCountyName ASC;
                     ";
 
                 using var connection = CreateConnection();

@@ -106,6 +106,7 @@ namespace BulkUploadValidator.Services
             List<County> counties,
             List<SubCounty> subCounties,
             List<Constituency> constituencies,
+            List<Ward> wards)
         {
             int col = 1;
 
@@ -116,15 +117,15 @@ namespace BulkUploadValidator.Services
             col = WriteList(lists, col, counties.Select(c => c.CountyName), "CountyList");
 
             // Write ONCE — not per cascade
-                foreach (var county in counties)
-                {
-                    var subs = subCounties
-                        .Where(s => s.CountyId == county.CountyId)
-                        .Select(s => s.SubCountyName)
-                        .ToList();
+            foreach (var county in counties)
+            {
+                var subs = subCounties
+                    .Where(s => s.CountyId == county.CountyId)
+                    .Select(s => s.SubCountyName)
+                    .ToList();
 
-                    col = WriteList(lists, col, subs, SafeName(county.CountyName));
-                }
+                col = WriteList(lists, col, subs, SafeName(county.CountyName));
+            }
 
             // Full cascade (Constituency + Ward) also written once
             if (_config.ElectoralCascades.Any(c => c.Count >= 4))
