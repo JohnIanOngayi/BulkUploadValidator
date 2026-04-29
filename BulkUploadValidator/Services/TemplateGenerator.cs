@@ -45,21 +45,21 @@ namespace BulkUploadValidator.Services
 
                 counties = (await connection.QueryAsync<County>(@"
                     SELECT CountyId, CountyName
-                    FROM County_Master")).ToList();
+                    FROM County_Master ORDER BY CountyName ASC")).ToList();
 
                 subCounties = (await connection.QueryAsync<SubCounty>(@"
                     SELECT SubCountyID as SubCountyId, SubCountyName, CountyID as CountyId
-                    FROM SubCountyMaster")).ToList();
+                    FROM SubCountyMaster ORDER BY SubCountyName ASC")).ToList();
 
                 if (needsFullCascade)
                 {
                     constituencies = (await connection.QueryAsync<Constituency>(@"
                         SELECT ConstituencyId, ConstituencyName, SubCountyID as SubCountyId
-                        FROM ConstituencyMaster")).ToList();
+                        FROM ConstituencyMaster ORDER BY ConstituencyName ASC")).ToList();
 
                     wards = (await connection.QueryAsync<Ward>(@"
                         SELECT WardID as WardId, WardName, ConstituencyId
-                        FROM WardMaster")).ToList();
+                        FROM WardMaster ORDER BY WardName ASC")).ToList();
                 }
             }
 

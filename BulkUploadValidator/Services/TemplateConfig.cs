@@ -41,18 +41,19 @@
     {
         public IReadOnlyList<string> Headers { get; } = new[]
         {
-            "Link Name",             // A 1
-            "Link Type",             // B 2
-            "Start Location",        // C 3
-            "Start Latitude",        // D 4
-            "Start Longitude",       // E 5
-            "Start County",          // F 6
-            "Start SubCounty",       // G 7
-            "End Location",          // H 8
-            "End Latitude",          // I 9
-            "End Longitude",         // J 10
-            "End County",            // K 11
-            "End SubCounty"          // L 12
+            "Link Name",            // A 1
+            "Link Type",            // B 2
+            "Start Location",       // C 3
+            "Start Latitude",       // D 4
+            "Start Longitude",      // E 5
+            "Start County",         // F 6
+            "Start SubCounty",      // G 7
+            "End Location",         // H 8
+            "End Latitude",         // I 9
+            "End Longitude",        // J 10
+            "End County",           // K 11
+            "End SubCounty",        // L 12
+            "Distance"
         };
 
         public IReadOnlyList<int> TypeDropdownColumns { get; } = new[] { 2 };   // B
