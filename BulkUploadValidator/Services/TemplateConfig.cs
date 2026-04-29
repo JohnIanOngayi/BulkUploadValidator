@@ -31,7 +31,8 @@
         public string TypeQuerySql => @"
             SELECT SiteTypeID as Id, SiteTypeName as Name, IsActive
             FROM SiteTypeMaster
-            WHERE IsActive = 1 AND IsDelete = 0;";
+            WHERE IsActive = 1 AND IsDelete = 0
+            ORDER BY SiteTypeName ASC";
     }
 
     // -----------------------------------------------------------------------
@@ -69,6 +70,7 @@
         public string TypeQuerySql => @"
             SELECT LinkTypeID as Id, LinkTypeName as Name, IsActive
             FROM LinkTypeMaster
-            WHERE IsActive  = 1 AND IsDelete = 0;";
+            WHERE IsActive  = 1 AND IsDelete = 0
+            ORDER BY LinkTypeName ASC";
     }
 }
