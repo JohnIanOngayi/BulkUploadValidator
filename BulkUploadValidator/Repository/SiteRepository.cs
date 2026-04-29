@@ -3,6 +3,7 @@ using BulkUploadValidator.Models;
 using Dapper;
 using MySqlConnector;
 using System.Data;
+using System.Text;
 
 namespace BulkUploadValidator.Repository
 {
@@ -215,55 +216,26 @@ namespace BulkUploadValidator.Repository
 
         public async Task<bool> BulkInsertSites(List<SiteCreateDto> sites)
         {
-            var table = new DataTable();
+            const int batchSize = 200;
+            const int maxRetries = 3;
 
-            table.Columns.Add("SiteName", typeof(string));
-            table.Columns.Add("SiteTypeId", typeof(int));
-            table.Columns.Add("Location", typeof(string));
-            table.Columns.Add("GPSLatitude", typeof(double));
-            table.Columns.Add("GPSLongitude", typeof(double));
-            table.Columns.Add("CountyId", typeof(int));
-            table.Columns.Add("SubCountyId", typeof(int));
-            table.Columns.Add("ConstituencyId", typeof(int));
-            table.Columns.Add("WardId", typeof(int));
-            table.Columns.Add("NoOfInternetUsers", typeof(int));
-
-            foreach (var site in sites)
-            {
-                table.Rows.Add(
-                    site.SiteName,
-                    _siteTypesCache[site.SiteType].SiteTypeId,
-                    site.LocationName,
-                    site.GPSLatitude,
-                    site.GPSLongitude,
-                    _counties[site.CountyName],
-                    _subCounties[site.SubCountyName],
-                    _constituencies[site.ConstituencyName],
-                    _wardsCache[site.WardName].WardId,
-                    site.NoOfInternetUsers
-                );
-            }
-
-            using var connection = new MySqlConnection(_connectionString);
+            await using var connection = new MySqlConnection(_connectionString);
             await connection.OpenAsync();
-            using var transaction = await connection.BeginTransactionAsync();
 
+            await using var transaction = await connection.BeginTransactionAsync();
             try
             {
-                var bulkCopy = new MySqlBulkCopy(connection, transaction);
-                bulkCopy.DestinationTableName = "SiteMaster";
-                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(0, "SiteName"));
-                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(1, "SiteTypeName"));
-                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(2, "LocationName"));
-                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(3, "GPSLatitude"));
-                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(4, "GPSLongitude"));
-                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(6, "CountyId"));
-                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(7, "SubCountyId"));
-                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(8, "ConstituencyId"));
-                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(9, "WardId"));
-                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(5, "NoOfInternetUsers"));
+                for (int i = 0; i < sites.Count; i += batchSize)
+                {
+                    var batch = sites.Skip(i).Take(batchSize).ToList();
 
-                await bulkCopy.WriteToServerAsync(table);
+                    await ExecuteBatchWithRetry(
+                        connection,
+                        transaction,
+                        batch,
+                        maxRetries);
+                }
+
                 await transaction.CommitAsync();
                 return true;
             }
@@ -273,6 +245,83 @@ namespace BulkUploadValidator.Repository
                 Console.WriteLine($"An error occurred in {nameof(BulkInsertSites)}: {ex}");
                 return false;
             }
+        }
+
+        private async Task ExecuteBatchWithRetry(MySqlConnection conn, MySqlTransaction tx, List<SiteCreateDto> batch, int maxRetries)
+        {
+            int attempt = 0;
+
+            while (true)
+            {
+                try
+                {
+                    await ExecuteBatch(conn, tx, batch);
+                    return;
+                }
+                catch (MySqlException ex) when (IsTransient(ex) && attempt < maxRetries)
+                {
+                    attempt++;
+
+                    var delay = TimeSpan.FromMilliseconds(100 * Math.Pow(2, attempt));
+                    await Task.Delay(delay);
+                }
+                catch
+                {
+                    // NON-transient OR retries exhausted
+                    throw; // ← critical for atomicity
+                }
+            }
+        }
+
+        private async Task ExecuteBatch(MySqlConnection conn, MySqlTransaction tx, List<SiteCreateDto> batch)
+        {
+            var sb = new StringBuilder();
+            var cmd = new MySqlCommand { Connection = conn, Transaction = tx };
+
+            sb.Append(@"
+                INSERT INTO SiteMaster
+                (SiteName, SiteTypeId, Location, GPSLatitude, GPSLongitude,
+                CountyId, SubCountyId, ConstituencyId, WardId, NoOfInternetUsers)
+                VALUES ");
+
+            for (int j = 0; j < batch.Count; j++)
+            {
+                if (j > 0) sb.Append(",");
+
+                sb.Append($@"
+                    (@SiteName{j}, @SiteTypeId{j}, @Location{j}, @GPSLatitude{j}, @GPSLongitude{j},
+                    @CountyId{j}, @SubCountyId{j}, @ConstituencyId{j}, @WardId{j}, @NoOfInternetUsers{j})");
+
+                var s = batch[j];
+
+                cmd.Parameters.AddWithValue($"@SiteName{j}", s.SiteName);
+                cmd.Parameters.AddWithValue($"@SiteTypeId{j}", _siteTypesCache[s.SiteType].SiteTypeId);
+                cmd.Parameters.AddWithValue($"@Location{j}", s.LocationName);
+                cmd.Parameters.AddWithValue($"@GPSLatitude{j}", s.GPSLatitude);
+                cmd.Parameters.AddWithValue($"@GPSLongitude{j}", s.GPSLongitude);
+                cmd.Parameters.AddWithValue($"@CountyId{j}", _counties[s.CountyName]);
+                cmd.Parameters.AddWithValue($"@SubCountyId{j}", _subCounties[s.SubCountyName]);
+                cmd.Parameters.AddWithValue($"@ConstituencyId{j}", _constituencies[s.ConstituencyName]);
+                cmd.Parameters.AddWithValue($"@WardId{j}", _wardsCache[s.WardName].WardId);
+                cmd.Parameters.AddWithValue($"@NoOfInternetUsers{j}", s.NoOfInternetUsers);
+            }
+
+            cmd.CommandText = sb.ToString();
+
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        private static bool IsTransient(MySqlException ex)
+        {
+            return ex.Number switch
+            {
+                1205 => true, // Lock wait timeout
+                1213 => true, // Deadlock
+                1042 => true, // Connection issue
+                2006 => true, // Server gone
+                2013 => true, // Lost connection
+                _ => false
+            };
         }
     }
 }

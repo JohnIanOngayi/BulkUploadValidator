@@ -3,6 +3,7 @@ using BulkUploadValidator.Models;
 using Dapper;
 using MySqlConnector;
 using System.Data;
+using System.Text;
 
 namespace BulkUploadValidator.Repository
 {
@@ -188,76 +189,116 @@ namespace BulkUploadValidator.Repository
 
         public async Task<bool> BulkInsertLinks(List<LinkCreateDto> links)
         {
-            var table = new DataTable();
+            const int batchSize = 200;
+            const int maxRetries = 3;
 
-            table.Columns.Add("LinkName", typeof(string));
-            table.Columns.Add("LinkType", typeof(int));
-
-            table.Columns.Add("StartLocation", typeof(string));
-            table.Columns.Add("StartPointLatitude", typeof(double));
-            table.Columns.Add("StartPointLongitude", typeof(double));
-            table.Columns.Add("StartCountyId", typeof(int));
-            table.Columns.Add("StartSubCountyId", typeof(int));
-
-            table.Columns.Add("EndLocation", typeof(string));
-            table.Columns.Add("EndPointLatitude", typeof(double));
-            table.Columns.Add("EndPointLongitude", typeof(double));
-            table.Columns.Add("EndCountyId", typeof(int));
-            table.Columns.Add("EndSubCountyId", typeof(int));
-
-            foreach (var link in links)
-            {
-                table.Rows.Add(
-                    link.LinkName,
-                    _linkTypesCache[link.LinkType].LinkTypeId,
-
-                    link.StartLocation,
-                    link.StartLatitude,
-                    link.StartLongitude,
-                    _countiesCache[link.StartCountyName],
-                    _subCountiesCache[link.StartSubCountyName].SubCountyId,
-
-                    link.EndLocation,
-                    link.EndLatitude,
-                    link.StartLongitude,
-                    _countiesCache[link.EndCountyName],
-                    _subCountiesCache[link.EndSubCountyName].SubCountyId
-                );
-            }
-
-            using var connection = new MySqlConnection(_connectionString);
+            await using var connection = new MySqlConnection(_connectionString);
             await connection.OpenAsync();
-            using var transaction = await connection.BeginTransactionAsync();
+
+            await using var transaction = await connection.BeginTransactionAsync();
+
             try
             {
-                var bulkCopy = new MySqlBulkCopy(connection, transaction);
-                bulkCopy.DestinationTableName = "LinkMaster";
+                for (int i = 0; i < links.Count; i += batchSize)
+                {
+                    var batch = links.Skip(i).Take(batchSize).ToList();
 
-                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(0, "LinkName"));
-                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(1, "LinkType"));
+                    await ExecuteLinkBatchWithRetry(connection, transaction, batch, maxRetries);
+                }
 
-                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(2, "StartLocation"));
-                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(3, "StartPointLatitude"));
-                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(4, "StartPointLongitude"));
-                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(5, "StartCountyId"));
-                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(6, "StartSubCountyId"));
-
-                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(7, "EndLocation"));
-                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(8, "EndPointLatitude"));
-                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(9, "EndPointLongitude"));
-                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(10, "EndCountyId"));
-                bulkCopy.ColumnMappings.Add(new MySqlBulkCopyColumnMapping(11, "EndSubCountyId"));
-
-                await bulkCopy.WriteToServerAsync(table);
                 await transaction.CommitAsync();
                 return true;
             }
             catch (Exception ex)
             {
                 await transaction.RollbackAsync();
-                Console.WriteLine($"An error occurred in {nameof(BulkInsertLinks)}: {ex}");
+                Console.WriteLine($"Bulk insert failed (rolled back): {ex}");
                 return false;
             }
+        }
+
+        private async Task ExecuteLinkBatchWithRetry(MySqlConnection conn, MySqlTransaction tx, List<LinkCreateDto> batch, int maxRetries)
+        {
+            int attempt = 0;
+
+            while (true)
+            {
+                try
+                {
+                    await ExecuteLinkBatch(conn, tx, batch);
+                    return;
+                }
+                catch (MySqlException ex) when (IsTransient(ex) && attempt < maxRetries)
+                {
+                    attempt++;
+
+                    var delay = TimeSpan.FromMilliseconds(100 * Math.Pow(2, attempt));
+                    await Task.Delay(delay);
+                }
+                catch
+                {
+                    throw;
+                }
+            }
+        }
+
+        private async Task ExecuteLinkBatch(MySqlConnection conn, MySqlTransaction tx, List<LinkCreateDto> batch)
+        {
+            var sb = new StringBuilder();
+            var cmd = new MySqlCommand { Connection = conn, Transaction = tx };
+
+            sb.Append(@"
+                INSERT INTO LinkMaster
+                (LinkName, LinkType,
+                StartLocation, StartPointLatitude, StartPointLongitude, StartCountyId, StartSubCountyId,
+                EndLocation, EndPointLatitude, EndPointLongitude, EndCountyId, EndSubCountyId, distance)
+                VALUES ");
+
+            for (int j = 0; j < batch.Count; j++)
+            {
+                if (j > 0) sb.Append(",");
+
+                sb.Append($@"
+                    (@LinkName{j}, @LinkType{j},
+                    @StartLocation{j}, @StartLat{j}, @StartLon{j}, @StartCounty{j}, @StartSubCounty{j},
+                    @EndLocation{j}, @EndLat{j}, @EndLon{j}, @EndCounty{j}, @EndSubCounty{j}, @Distance{j})");
+
+                var link = batch[j];
+
+                cmd.Parameters.AddWithValue($"@LinkName{j}", link.LinkName);
+                cmd.Parameters.AddWithValue($"@LinkType{j}", _linkTypesCache[link.LinkType].LinkTypeId);
+
+                cmd.Parameters.AddWithValue($"@StartLocation{j}", link.StartLocation);
+                cmd.Parameters.AddWithValue($"@StartLat{j}", link.StartLatitude);
+                cmd.Parameters.AddWithValue($"@StartLon{j}", link.StartLongitude);
+                cmd.Parameters.AddWithValue($"@StartCounty{j}", _countiesCache[link.StartCountyName]);
+                cmd.Parameters.AddWithValue($"@StartSubCounty{j}", _subCountiesCache[link.StartSubCountyName].SubCountyId);
+
+                cmd.Parameters.AddWithValue($"@EndLocation{j}", link.EndLocation);
+                cmd.Parameters.AddWithValue($"@EndLat{j}", link.EndLatitude);
+                cmd.Parameters.AddWithValue($"@EndLon{j}", link.EndLongitude);
+                cmd.Parameters.AddWithValue($"@EndCounty{j}", _countiesCache[link.EndCountyName]);
+                cmd.Parameters.AddWithValue($"@EndSubCounty{j}", _subCountiesCache[link.EndSubCountyName].SubCountyId);
+
+                cmd.Parameters.AddWithValue($"@Distance{j}", link.Distance);
+            }
+
+            cmd.CommandText = sb.ToString();
+
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        private static bool IsTransient(MySqlException ex)
+        {
+            return ex.Number switch
+            {
+                1205 => true,
+                1213 => true,
+                1042 => true,
+                2006 => true,
+                2013 => true,
+                _ => false
+            };
         }
     }
 }
