@@ -113,7 +113,8 @@ namespace BulkUploadValidator.Services
             { "End Latitude", nameof(LinkCreateDto.EndLatitude) },
             { "End Longitude", nameof(LinkCreateDto.EndLongitude) },
             { "End County", nameof(LinkCreateDto.EndCountyName) },
-            { "End SubCounty", nameof(LinkCreateDto.EndSubCountyName) }
+            { "End SubCounty", nameof(LinkCreateDto.EndSubCountyName) },
+            { "Distance", nameof(LinkCreateDto.Distance) }
         });
 
         private Dictionary<string, int> GetMap(IXLRangeRow headerRow, Dictionary<string, string> definitions)
