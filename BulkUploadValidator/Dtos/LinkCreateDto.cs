@@ -16,5 +16,7 @@
         public double EndLongitude { get; set; }
         public string? EndSubCountyName { get; set; }
         public string? EndCountyName { get; set; }
+
+        public string? Distance { get; set; }
     }
 }

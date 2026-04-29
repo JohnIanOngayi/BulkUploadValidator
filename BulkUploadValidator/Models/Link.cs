@@ -22,5 +22,6 @@
         public string? EndSubCountyName { get; set; }
         public int IsDeleted { get; set; }
         public int IsActive { get; set; }
+        public string? Distance { get; set; }
     }
 }
