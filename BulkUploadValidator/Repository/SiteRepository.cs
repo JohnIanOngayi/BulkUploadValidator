@@ -75,8 +75,6 @@ namespace BulkUploadValidator.Repository
                         ON sc.SubCountyID = cs.SubCountyID
                     JOIN County_Master c
                         ON sc.CountyID = c.CountyId
-                    WHERE
-                        w.IsDelete = 0 AND w.IsActive = 1
                     ORDER BY WardName ASC;";
 
                 using var connection = CreateConnection();

@@ -67,8 +67,6 @@ namespace BulkUploadValidator.Repository
                         SubCountyMaster s
                     JOIN 
                         County_Master c ON s.CountyID = c.CountyID
-                    WHERE
-                        s.IsDelete = 0 AND s.IsActive = 1
                     ORDER BY
                         s.SubCountyName ASC;
                     ";
@@ -189,7 +187,7 @@ namespace BulkUploadValidator.Repository
 
         public async Task<bool> BulkInsertLinks(List<LinkCreateDto> links)
         {
-            const int batchSize = 200;
+            const int batchSize = 200; //600 -> 200 200 200
             const int maxRetries = 3;
 
             await using var connection = new MySqlConnection(_connectionString);
