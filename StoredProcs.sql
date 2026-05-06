@@ -110,38 +110,6 @@ DELIMITER ;
 
 
 ---- EXCEL's ---- 
-
-DROP PROCEDURE IF EXISTS sp_Bulk_Excel_GetLinkTypes;
-DELIMITER //
-CREATE PROCEDURE sp_Bulk_Excel_GetLinkTypes()
-BEGIN
-    SELECT 
-        LinkTypeID as Id, LinkTypeName as Name, IsActive
-    FROM 
-        LinkTypeMaster
-    WHERE 
-        IsActive  = 1 AND IsDelete = 0
-    ORDER BY 
-        LinkTypeName ASC
-END//
-DELIMITER ;
-
-
-DROP PROCEDURE IF EXISTS sp_Bulk_Excel_GetSiteTypes;
-DELIMITER //
-CREATE PROCEDURE sp_Bulk_Excel_GetSiteTypes()
-BEGIN
-    SELECT 
-        SiteTypeID as Id, SiteTypeName as Name, IsActive
-    FROM 
-        SiteTypeMaster
-    WHERE 
-        IsActive = 1 AND IsDelete = 0
-    ORDER BY 
-        SiteTypeName ASC
-END//
-DELIMITER ;
-
 -- Counties
 DROP PROCEDURE IF EXISTS sp_Bulk_Dropdown_Counties;
 DELIMITER //
