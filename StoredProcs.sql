@@ -177,3 +177,27 @@ BEGIN
     SELECT WardID as WardId, WardName, ConstituencyId FROM WardMaster ORDER BY WardName ASC
 END //
 DELIMITER ;
+
+-- LinkType Dropdown
+DROP PROCEDURE IF EXISTS sp_Bulk_Dropdown_LinkTypes;
+DELIMITER //
+CREATE PROCEDURE sp_Bulk_Dropdown_LinkTypes()
+BEGIN
+SELECT LinkTypeID as Id, LinkTypeName as Name, IsActive
+            FROM LinkTypeMaster
+            WHERE IsActive  = 1 AND IsDelete = 0
+            ORDER BY LinkTypeName ASC
+END//
+DELIMITER ;
+
+-- SiteType Dropdown
+DROP PROCEDURE IF EXISTS sp_Bulk_Dropdown_SiteTypes;
+DELIMITER //
+CREATE PROCEDURE sp_Bulk_Dropdown_SiteTypes()
+BEGIN
+SELECT SiteTypeID as Id, SiteTypeName as Name, IsActive
+            FROM SiteTypeMaster
+            WHERE IsActive = 1 AND IsDelete = 0
+            ORDER BY SiteTypeName ASC
+END //
+DELIMITER ;

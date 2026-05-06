@@ -42,7 +42,7 @@ namespace BulkUploadValidator.Services
 
             using (var connection = new MySqlConnection(_connectionString))
             {
-                types = (await connection.QueryAsync<TypeRow>(_config.TypeQuerySql)).ToList();
+                types = (await connection.QueryAsync<TypeRow>(_config.TypeQuerySql, commandType: CommandType.StoredProcedure)).ToList();
 
                 counties = (await connection.QueryAsync<County>("sp_Bulk_Dropdown_Counties", commandType: CommandType.StoredProcedure)).ToList();
 

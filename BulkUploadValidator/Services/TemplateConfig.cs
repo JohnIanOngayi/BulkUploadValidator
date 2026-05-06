@@ -28,11 +28,7 @@
 
         public string TypeListRangeName => "SiteTypeList";
 
-        public string TypeQuerySql => @"
-            SELECT SiteTypeID as Id, SiteTypeName as Name, IsActive
-            FROM SiteTypeMaster
-            WHERE IsActive = 1 AND IsDelete = 0
-            ORDER BY SiteTypeName ASC";
+        public string TypeQuerySql => @"sp_Bulk_Dropdown_SiteTypes";
     }
 
     // -----------------------------------------------------------------------
@@ -67,10 +63,6 @@
 
         public string TypeListRangeName => "LinkTypeList";
 
-        public string TypeQuerySql => @"
-            SELECT LinkTypeID as Id, LinkTypeName as Name, IsActive
-            FROM LinkTypeMaster
-            WHERE IsActive  = 1 AND IsDelete = 0
-            ORDER BY LinkTypeName ASC";
+        public string TypeQuerySql => @"sp_Bulk_Dropdown_LinkTypes";
     }
 }
