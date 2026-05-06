@@ -31,18 +31,37 @@ namespace BulkUploadValidator.Repository
         {
             try
             {
-                const string querySql = @"
-                    SELECT
-                        SiteTypeID as SiteTypeId, SiteTypeName, IsDelete as IsDeleted, IsActive
-                    FROM 
-                        SiteTypeMaster
-                    WHERE 
-                        IsDelete = 0 AND IsActive = 1
-                    ORDER BY 
-                        SiteTypeName ASC;";
+                //const string querySql = @"
+                //    SELECT
+                //        SiteTypeID as SiteTypeId, SiteTypeName, IsDelete as IsDeleted, IsActive
+                //    FROM 
+                //        SiteTypeMaster
+                //    WHERE 
+                //        IsDelete = 0 AND IsActive = 1
+                //    ORDER BY 
+                //        SiteTypeName ASC;";
+                const string cmd = @"
+                    DROP PROCEDURE IF EXISTS sp_Bulk_GetAllValidSiteTypes;
+                        DELIMITER //
+                        CREATE PROCEDURE sp_Bulk_GetAllValidSiteTypes()
+                        BEGIN
+                            SELECT
+                                SiteTypeID  AS SiteTypeId,
+                                SiteTypeName,
+                                IsDelete    AS IsDeleted,
+                                IsActive
+                            FROM
+                                SiteTypeMaster
+                            WHERE
+                                IsDelete = 0 AND IsActive = 1
+                            ORDER BY
+                                SiteTypeName ASC;
+                        END//
+                        DELIMITER ;";
+                const string querySql = "sp_Bulk_GetAllValidSiteTypes";
 
                 using var connection = CreateConnection();
-                var result = (await connection.QueryAsync<SiteType>(querySql, commandType: CommandType.Text)).ToList();
+                var result = (await connection.QueryAsync<SiteType>(querySql, commandType: CommandType.StoredProcedure)).ToList();
                 if (cache == true)
                 {
                     foreach (var item in result)
@@ -62,23 +81,48 @@ namespace BulkUploadValidator.Repository
         {
             try
             {
-                const string querySql = @"
-                    SELECT
-                        w.WardID as WardId, w.WardName, 
-                        c.CountyId, c.CountyName,
-                        sc.SubCountyID as SubCountyId, sc.SubCountyName,
-                        cs.ConstituencyId, cs.ConstituencyName
-                    FROM WardMaster w
-                    JOIN ConstituencyMaster cs 
-                        ON cs.ConstituencyID = w.ConstituencyId
-                    JOIN SubCountyMaster sc
-                        ON sc.SubCountyID = cs.SubCountyID
-                    JOIN County_Master c
-                        ON sc.CountyID = c.CountyId
-                    ORDER BY WardName ASC;";
+                //const string querySql = @"
+                //    SELECT
+                //        w.WardID as WardId, w.WardName, 
+                //        c.CountyId, c.CountyName,
+                //        sc.SubCountyID as SubCountyId, sc.SubCountyName,
+                //        cs.ConstituencyId, cs.ConstituencyName
+                //    FROM WardMaster w
+                //    JOIN ConstituencyMaster cs 
+                //        ON cs.ConstituencyID = w.ConstituencyId
+                //    JOIN SubCountyMaster sc
+                //        ON sc.SubCountyID = cs.SubCountyID
+                //    JOIN County_Master c
+                //        ON sc.CountyID = c.CountyId
+                //    ORDER BY WardName ASC;";
+                const string cmd = @"
+                    DROP PROCEDURE IF EXISTS sp_Bulk_GetAllValidWards;
+                        DELIMITER //
+                        CREATE PROCEDURE sp_Bulk_GetAllValidWards()
+                        BEGIN
+                            SELECT
+                                w.WardID            AS WardId,
+                                w.WardName,
+                                c.CountyId,
+                                c.CountyName,
+                                sc.SubCountyID      AS SubCountyId,
+                                sc.SubCountyName,
+                                cs.ConstituencyId,
+                                cs.ConstituencyName
+                            FROM WardMaster w
+                            JOIN ConstituencyMaster cs
+                                ON cs.ConstituencyID = w.ConstituencyId
+                            JOIN SubCountyMaster sc
+                                ON sc.SubCountyID = cs.SubCountyID
+                            JOIN County_Master c
+                                ON sc.CountyID = c.CountyId
+                            ORDER BY WardName ASC;
+                        END//
+                        DELIMITER ;";
+                const string querySql = "sp_Bulk_GetAllValidWards";
 
                 using var connection = CreateConnection();
-                var result = (await connection.QueryAsync<Ward>(querySql, commandType: CommandType.Text)).ToList();
+                var result = (await connection.QueryAsync<Ward>(querySql, commandType: CommandType.StoredProcedure)).ToList();
 
                 if (cache == true)
                 {
@@ -111,10 +155,19 @@ namespace BulkUploadValidator.Repository
         {
             try
             {
-                const string query = @"SELECT SiteName FROM SiteMaster;";
+                //const string query = @"SELECT SiteName FROM SiteMaster;";
+                const string cmd = @"
+                    DROP PROCEDURE IF EXISTS sp_Bulk_GetExistentSites;
+                        DELIMITER //
+                        CREATE PROCEDURE sp_Bulk_GetExistentSites()
+                        BEGIN
+                        SELECT SiteName FROM SiteMaster;
+                    END//
+                    DELIMITER;";
+                const string querySql = "sp_Bulk_GetExistentSites";
 
                 using var connection = CreateConnection();
-                var result = (await connection.QueryAsync<string>(query, commandType: CommandType.Text)).ToList();
+                var result = (await connection.QueryAsync<string>(querySql, commandType: CommandType.StoredProcedure)).ToList();
                 if (cache)
                     _existentSites.UnionWith(result.Select(x => x.Trim().ToUpperInvariant()));
 

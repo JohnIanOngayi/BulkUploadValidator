@@ -1,3 +1,6 @@
 <Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="StoredProcs.sql" />
+  </Folder>
   <Project Path="BulkUploadValidator/BulkUploadValidator.csproj" />
 </Solution>

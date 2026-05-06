@@ -29,18 +29,37 @@ namespace BulkUploadValidator.Repository
         {
             try
             {
-                const string querySql = @"
-                    SELECT
-                        LinkTypeID as LinkTypeId, LinkTypeName, IsDelete as IsDeleted, IsActive
-                    FROM 
-                        LinkTypeMaster
-                    WHERE 
-                        IsDelete = 0 AND IsActive = 1
-                    ORDER BY
-                        LinkTypeName ASC;";
+                //const string querySql = @"
+                //    SELECT
+                //        LinkTypeID as LinkTypeId, LinkTypeName, IsDelete as IsDeleted, IsActive
+                //    FROM 
+                //        LinkTypeMaster
+                //    WHERE 
+                //        IsDelete = 0 AND IsActive = 1
+                //    ORDER BY
+                //        LinkTypeName ASC;";
+                const string cmd = @"
+                    DROP PROCEDURE IF EXISTS sp_Bulk_GetAllValidLinkTypes;
+                    DELIMITER //
+                    CREATE PROCEDURE sp_Bulk_GetAllValidLinkTypes()
+                    BEGIN
+                        SELECT
+                            LinkTypeID  AS LinkTypeId,
+                            LinkTypeName,
+                            IsDelete    AS IsDeleted,
+                            IsActive
+                        FROM
+                            LinkTypeMaster
+                        WHERE
+                            IsDelete = 0 AND IsActive = 1
+                        ORDER BY
+                            LinkTypeName ASC;
+                    END//
+                    DELIMITER ;";
+                const string querySql = "sp_Bulk_GetAllValidLinkTypes";
 
                 using var connection = CreateConnection();
-                var result = (await connection.QueryAsync<LinkType>(querySql, commandType: CommandType.Text)).ToList();
+                var result = (await connection.QueryAsync<LinkType>(querySql, commandType: CommandType.StoredProcedure)).ToList();
                 if (cache == true)
                 {
                     foreach (var item in result)
@@ -59,20 +78,38 @@ namespace BulkUploadValidator.Repository
         {
             try
             {
-
-                const string querySql = @"
-                    SELECT 
-                        s.SubCountyID as SubCountyId, s.SubCountyName, c.CountyID as CountyId, c.CountyName
-                    FROM 
-                        SubCountyMaster s
-                    JOIN 
-                        County_Master c ON s.CountyID = c.CountyID
-                    ORDER BY
-                        s.SubCountyName ASC;
-                    ";
+                //const string querySql = @"
+                //    SELECT 
+                //        s.SubCountyID as SubCountyId, s.SubCountyName, c.CountyID as CountyId, c.CountyName
+                //    FROM 
+                //        SubCountyMaster s
+                //    JOIN 
+                //        County_Master c ON s.CountyID = c.CountyID
+                //    ORDER BY
+                //        s.SubCountyName ASC;
+                //    ";
+                const string cmd = @"
+                    DROP PROCEDURE IF EXISTS sp_Bulk_GetAllValidSubCounties;
+                    DELIMITER //
+                    CREATE PROCEDURE sp_Bulk_GetAllValidSubCounties()
+                    BEGIN
+                        SELECT
+                            s.SubCountyID   AS SubCountyId,
+                            s.SubCountyName,
+                            c.CountyID      AS CountyId,
+                            c.CountyName
+                        FROM
+                            SubCountyMaster s
+                        JOIN
+                            County_Master c ON s.CountyID = c.CountyID
+                        ORDER BY
+                            s.SubCountyName ASC;
+                    END//
+                    DELIMITER ;";
+                const string querySql = "sp_Bulk_GetAllValidSubCounties";
 
                 using var connection = CreateConnection();
-                var result = (await connection.QueryAsync<SubCounty>(querySql, commandType: CommandType.Text)).ToList();
+                var result = (await connection.QueryAsync<SubCounty>(querySql, commandType: CommandType.StoredProcedure)).ToList();
                 if (cache == true)
                 {
                     foreach (var item in result)
@@ -99,10 +136,19 @@ namespace BulkUploadValidator.Repository
         {
             try
             {
-                const string query = @"SELECT LinkName FROM LinkMaster;";
+                //const string query = @"SELECT LinkName FROM LinkMaster;";
+                const string cmd = @"
+                    DROP PROCEDURE IF EXISTS sp_Bulk_GetExistentLinks;
+                    DELIMITER //
+                    CREATE PROCEDURE sp_Bulk_GetExistentLinks()
+                    BEGIN
+                        SELECT LinkName FROM LinkMaster;
+                    END//
+                    DELIMITER ;";
+                const string querySql = "sp_Bulk_GetExistentLinks";
 
                 using var connection = CreateConnection();
-                var result = (await connection.QueryAsync<string>(query, commandType: CommandType.Text)).ToList();
+                var result = (await connection.QueryAsync<string>(querySql, commandType: CommandType.StoredProcedure)).ToList();
                 if (cache)
                     _existentLinks.UnionWith(result.Select(x => x.Trim().ToUpperInvariant()));
 

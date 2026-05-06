@@ -2,6 +2,7 @@
 using ClosedXML.Excel;
 using Dapper;
 using MySqlConnector;
+using System.Data;
 using System.Text.RegularExpressions;
 
 namespace BulkUploadValidator.Services
@@ -43,23 +44,15 @@ namespace BulkUploadValidator.Services
             {
                 types = (await connection.QueryAsync<TypeRow>(_config.TypeQuerySql)).ToList();
 
-                counties = (await connection.QueryAsync<County>(@"
-                    SELECT CountyId, CountyName
-                    FROM County_Master ORDER BY CountyName ASC")).ToList();
+                counties = (await connection.QueryAsync<County>("sp_Bulk_Dropdown_Counties", commandType: CommandType.StoredProcedure)).ToList();
 
-                subCounties = (await connection.QueryAsync<SubCounty>(@"
-                    SELECT SubCountyID as SubCountyId, SubCountyName, CountyID as CountyId
-                    FROM SubCountyMaster ORDER BY SubCountyName ASC")).ToList();
+                subCounties = (await connection.QueryAsync<SubCounty>("sp_Bulk_Dropdown_SubCounties", commandType: CommandType.StoredProcedure)).ToList();
 
                 if (needsFullCascade)
                 {
-                    constituencies = (await connection.QueryAsync<Constituency>(@"
-                        SELECT ConstituencyId, ConstituencyName, SubCountyID as SubCountyId
-                        FROM ConstituencyMaster ORDER BY ConstituencyName ASC")).ToList();
+                    constituencies = (await connection.QueryAsync<Constituency>("sp_Bulk_Dropdown_Constituencies", commandType: CommandType.StoredProcedure)).ToList();
 
-                    wards = (await connection.QueryAsync<Ward>(@"
-                        SELECT WardID as WardId, WardName, ConstituencyId
-                        FROM WardMaster ORDER BY WardName ASC")).ToList();
+                    wards = (await connection.QueryAsync<Ward>("sp_Bulk_Dropdown_Wards", commandType: CommandType.StoredProcedure)).ToList();
                 }
             }
 
